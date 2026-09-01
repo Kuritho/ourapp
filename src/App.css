@@ -1,38 +1,136 @@
-.App {
-  text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
+.app {
   min-height: 100vh;
+  background: var(--bg-primary);
+  transition: background 0.3s ease;
+}
+
+/* Toast Notifications */
+.Toastify__toast {
+  border-radius: 12px !important;
+  background: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: var(--shadow) !important;
+  padding: 14px 18px !important;
+}
+
+.Toastify__toast-body {
+  color: var(--text-primary) !important;
+  font-size: 14px !important;
+}
+
+.Toastify__progress-bar {
+  background: var(--pink) !important;
+}
+
+/* Theme Toggle Button */
+.theme-toggle-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-light);
+}
+
+.theme-toggle-btn:hover {
+  transform: scale(1.02);
+  border-color: var(--pink);
+}
+
+.theme-toggle-btn:active {
+  transform: scale(0.96);
+}
+
+/* Mobile Bottom Navigation */
+.mobile-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-around;
+  padding: 8px 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.08);
+}
+
+.mobile-nav-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  gap: 2px;
+  padding: 6px 8px;
+  text-decoration: none;
+  color: var(--text-muted);
+  border-radius: 10px;
+  transition: all 0.3s ease;
+  min-width: 48px;
+  font-size: 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  position: relative;
 }
 
-.App-link {
-  color: #61dafb;
+.mobile-nav-item.active {
+  color: var(--pink);
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+.mobile-nav-item .nav-icon {
+  font-size: 22px;
+  transition: all 0.3s ease;
+}
+
+.mobile-nav-item.active .nav-icon {
+  transform: scale(1.1);
+}
+
+.mobile-nav-item .nav-label {
+  font-size: 9px;
+  letter-spacing: 0.3px;
+  font-weight: 500;
+}
+
+.mobile-nav-item .nav-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  background: var(--pink);
+  border-radius: 50%;
+}
+
+.mobile-nav-item:active {
+  transform: scale(0.92);
+}
+
+/* Main Content Padding for Mobile */
+.main-content {
+  padding-bottom: 80px !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .mobile-nav {
+    display: flex !important;
   }
-  to {
-    transform: rotate(360deg);
+}
+
+@media (min-width: 769px) {
+  .mobile-nav {
+    display: none !important;
   }
 }

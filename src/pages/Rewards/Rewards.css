@@ -1,0 +1,258 @@
+.rewards-page {
+  padding: 20px 0;
+}
+
+.rewards-header {
+  text-align: center;
+  padding: 30px 20px;
+  margin-bottom: 30px;
+  background: linear-gradient(180deg, rgba(26, 58, 42, 0.2), transparent);
+  border-radius: var(--border-radius);
+}
+
+.rewards-header h1 {
+  font-size: 36px;
+  font-weight: 400;
+  color: var(--off-white);
+  margin-bottom: 8px;
+}
+
+.rewards-header p {
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+.rewards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reward-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--dark-card);
+  border-radius: var(--border-radius);
+  border: 1px solid rgba(42, 90, 58, 0.2);
+  transition: var(--transition);
+  flex-wrap: wrap;
+}
+
+.reward-item:hover {
+  border-color: var(--romantic-pink);
+}
+
+.reward-icon {
+  font-size: 32px;
+}
+
+.reward-details {
+  flex: 1;
+  min-width: 150px;
+}
+
+.reward-details h4 {
+  color: var(--off-white);
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.reward-details p {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.reward-score {
+  color: var(--romantic-pink);
+  font-size: 13px;
+}
+
+.reward-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 100px;
+}
+
+.status-badge {
+  padding: 2px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--off-white);
+}
+
+.reward-date {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.reward-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.view-receipt-btn {
+  padding: 6px 16px;
+  background: var(--romantic-pink);
+  border: none;
+  border-radius: 6px;
+  color: var(--dark-bg);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.view-receipt-btn:hover {
+  transform: scale(1.02);
+}
+
+.download-btn {
+  padding: 6px 12px;
+  background: none;
+  border: 1px solid rgba(42, 90, 58, 0.3);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.download-btn:hover {
+  border-color: var(--romantic-pink);
+  color: var(--off-white);
+}
+
+.receipt-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.receipt-modal {
+  background: var(--dark-card);
+  border-radius: var(--border-radius);
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 32px;
+  position: relative;
+  border: 1px solid rgba(42, 90, 58, 0.3);
+}
+
+.close-receipt {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 24px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.close-receipt:hover {
+  color: var(--off-white);
+}
+
+.receipt-content {
+  text-align: center;
+}
+
+.receipt-header {
+  border-bottom: 2px dashed rgba(42, 90, 58, 0.3);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+}
+
+.receipt-header h2 {
+  font-size: 24px;
+  font-weight: 300;
+  color: var(--off-white);
+  letter-spacing: 2px;
+}
+
+.receipt-header h3 {
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--romantic-pink);
+  letter-spacing: 4px;
+  margin-top: 4px;
+}
+
+.receipt-body {
+  text-align: left;
+  padding: 8px 0;
+}
+
+.receipt-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(42, 90, 58, 0.1);
+}
+
+.receipt-row:last-child {
+  border-bottom: none;
+}
+
+.receipt-label {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.receipt-value {
+  color: var(--off-white);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.receipt-value.highlight {
+  color: var(--romantic-pink);
+}
+
+.receipt-footer {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 2px dashed rgba(42, 90, 58, 0.3);
+}
+
+.receipt-footer p {
+  color: var(--off-white);
+  font-size: 16px;
+}
+
+.receipt-note {
+  color: var(--text-secondary) !important;
+  font-size: 13px !important;
+  margin-top: 4px;
+}
+
+@media (max-width: 600px) {
+  .reward-item {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .reward-status {
+    align-items: center;
+  }
+  
+  .reward-actions {
+    justify-content: center;
+  }
+}
