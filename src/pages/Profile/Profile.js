@@ -42,17 +42,26 @@ const Profile = () => {
     if (!user) return;
 
     try {
+      // Get current user's profile ID
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profileData) return;
+
       // Games played
       const { data: gameAttempts } = await supabase
         .from('game_attempts')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_id', profileData.id);
 
       // High score
       const { data: highScore } = await supabase
         .from('game_attempts')
         .select('score')
-        .eq('user_id', user.id)
+        .eq('user_id', profileData.id)
         .order('score', { ascending: false })
         .limit(1);
 
@@ -60,7 +69,7 @@ const Profile = () => {
       const { data: rewardsEarned } = await supabase
         .from('reward_claims')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_id', profileData.id);
 
       setStats({
         gamesPlayed: gameAttempts?.length || 0,
@@ -77,11 +86,20 @@ const Profile = () => {
     if (!user) return;
 
     try {
+      // Get current user's profile ID
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profileData) return;
+
       // Get recent game attempts
       const { data: attempts } = await supabase
         .from('game_attempts')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', profileData.id)
         .order('completed_at', { ascending: false })
         .limit(3);
 
@@ -89,7 +107,7 @@ const Profile = () => {
       const { data: claims } = await supabase
         .from('reward_claims')
         .select('*, rewards(name)')
-        .eq('user_id', user.id)
+        .eq('user_id', profileData.id)
         .order('claimed_at', { ascending: false })
         .limit(3);
 
@@ -203,11 +221,12 @@ const Profile = () => {
         avatar_url: avatarUrl
       };
 
+      console.log('Updating profile with:', updates);
       await updateProfile(updates);
       setEditMode(false);
     } catch (error) {
       console.error('Error updating profile:', error);
-      // Error already handled in AuthContext
+      alert('Failed to update profile: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -251,7 +270,7 @@ const Profile = () => {
       <div style={{ 
         textAlign: 'center', 
         padding: '30px 20px', 
-        background: 'linear-gradient(180deg, rgba(26, 58, 42, 0.3), transparent)', 
+        background: 'linear-gradient(180deg, var(--border-color), transparent)', 
         borderRadius: '16px', 
         marginBottom: '30px' 
       }}>
@@ -262,8 +281,8 @@ const Profile = () => {
             height: '120px', 
             borderRadius: '50%', 
             overflow: 'hidden', 
-            border: '3px solid #e8a0b4', 
-            boxShadow: '0 0 30px rgba(232, 160, 180, 0.1)', 
+            border: '3px solid var(--pink)', 
+            boxShadow: '0 0 30px rgba(212, 132, 152, 0.15)', 
             marginBottom: '16px' 
           }}>
             {avatarPreview ? (
@@ -275,9 +294,9 @@ const Profile = () => {
                 display: 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'center', 
-                background: '#0a2a1a', 
+                background: 'var(--green-dark)', 
                 fontSize: '48px', 
-                color: '#b0aca6' 
+                color: 'var(--text-secondary)' 
               }}>
                 {profile?.full_name?.charAt(0) || '👤'}
               </div>
@@ -287,13 +306,13 @@ const Profile = () => {
                 position: 'absolute', 
                 bottom: 0, 
                 right: 0, 
-                background: '#e8a0b4', 
+                background: 'var(--pink)', 
                 padding: '8px', 
                 borderRadius: '50%', 
                 cursor: 'pointer', 
                 fontSize: '16px', 
                 transition: 'all 0.3s ease', 
-                border: '2px solid #0a0a0a' 
+                border: '2px solid var(--bg-primary)' 
               }}>
                 📷
                 <input
@@ -305,9 +324,9 @@ const Profile = () => {
               </label>
             )}
           </div>
-          <h1 style={{ fontSize: '28px', fontWeight: '500', color: '#f0ece6', marginBottom: '4px' }}>{profile?.full_name || 'User'}</h1>
-          <p style={{ color: '#b0aca6', fontSize: '14px' }}>@{profile?.username || 'username'}</p>
-          <p style={{ color: '#b0aca6', fontSize: '12px', marginTop: '4px' }}>Joined {formatDate(profile?.created_at)}</p>
+          <h1 style={{ fontSize: '28px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>{profile?.full_name || 'User'}</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>@{profile?.username || 'username'}</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '4px' }}>Joined {formatDate(profile?.created_at)}</p>
         </div>
 
         <div style={{ 
@@ -317,36 +336,36 @@ const Profile = () => {
           marginTop: '20px', 
           padding: '0 20px' 
         }}>
-          <div style={{ background: '#1e1e1e', padding: '16px', borderRadius: '16px', border: '1px solid rgba(42, 90, 58, 0.2)' }}>
-            <span style={{ display: 'block', fontSize: '24px', fontWeight: '600', color: '#f0ece6' }}>{stats.gamesPlayed}</span>
-            <span style={{ display: 'block', fontSize: '12px', color: '#b0aca6', marginTop: '4px' }}>Games Played</span>
+          <div style={{ background: 'var(--bg-card)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+            <span style={{ display: 'block', fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>{stats.gamesPlayed}</span>
+            <span style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Games Played</span>
           </div>
-          <div style={{ background: '#1e1e1e', padding: '16px', borderRadius: '16px', border: '1px solid rgba(42, 90, 58, 0.2)' }}>
-            <span style={{ display: 'block', fontSize: '24px', fontWeight: '600', color: '#f0ece6' }}>{stats.highScore}</span>
-            <span style={{ display: 'block', fontSize: '12px', color: '#b0aca6', marginTop: '4px' }}>High Score</span>
+          <div style={{ background: 'var(--bg-card)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+            <span style={{ display: 'block', fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>{stats.highScore}</span>
+            <span style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>High Score</span>
           </div>
-          <div style={{ background: '#1e1e1e', padding: '16px', borderRadius: '16px', border: '1px solid rgba(42, 90, 58, 0.2)' }}>
-            <span style={{ display: 'block', fontSize: '24px', fontWeight: '600', color: '#f0ece6' }}>{stats.rewardsEarned}</span>
-            <span style={{ display: 'block', fontSize: '12px', color: '#b0aca6', marginTop: '4px' }}>Rewards Earned</span>
+          <div style={{ background: 'var(--bg-card)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+            <span style={{ display: 'block', fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>{stats.rewardsEarned}</span>
+            <span style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Rewards Earned</span>
           </div>
-          <div style={{ background: '#1e1e1e', padding: '16px', borderRadius: '16px', border: '1px solid rgba(42, 90, 58, 0.2)' }}>
-            <span style={{ display: 'block', fontSize: '24px', fontWeight: '600', color: '#f0ece6' }}>{stats.rewardsClaimed}</span>
-            <span style={{ display: 'block', fontSize: '12px', color: '#b0aca6', marginTop: '4px' }}>Rewards Claimed</span>
+          <div style={{ background: 'var(--bg-card)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+            <span style={{ display: 'block', fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>{stats.rewardsClaimed}</span>
+            <span style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Rewards Claimed</span>
           </div>
         </div>
       </div>
 
       {!editMode ? (
         <div style={{ display: 'grid', gap: '24px', maxWidth: '700px', margin: '0 auto' }}>
-          <div style={{ background: '#1e1e1e', padding: '24px', borderRadius: '16px', border: '1px solid rgba(42, 90, 58, 0.2)' }}>
+          <div style={{ background: 'var(--bg-card)', padding: '24px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: '500', color: '#f0ece6' }}>About Me</h2>
+              <h2 style={{ fontSize: '20px', fontWeight: '600', color: 'var(--text-primary)' }}>About Me</h2>
               <button onClick={() => setEditMode(true)} style={{ 
-                background: 'none', 
-                border: '1px solid rgba(42, 90, 58, 0.3)', 
-                color: '#b0aca6', 
+                background: 'var(--bg-secondary)', 
+                border: '1px solid var(--border-color)', 
+                color: 'var(--text-secondary)', 
                 padding: '6px 16px', 
-                borderRadius: '6px', 
+                borderRadius: '8px', 
                 cursor: 'pointer', 
                 transition: 'all 0.3s ease', 
                 fontSize: '13px' 
@@ -355,32 +374,32 @@ const Profile = () => {
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(42, 90, 58, 0.1)' }}>
-                <span style={{ color: '#b0aca6', fontSize: '14px' }}>Full Name</span>
-                <span style={{ color: '#f0ece6', fontSize: '14px' }}>{profile?.full_name || 'Not set'}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Full Name</span>
+                <span style={{ color: 'var(--text-primary)', fontSize: '14px' }}>{profile?.full_name || 'Not set'}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(42, 90, 58, 0.1)' }}>
-                <span style={{ color: '#b0aca6', fontSize: '14px' }}>Username</span>
-                <span style={{ color: '#f0ece6', fontSize: '14px' }}>@{profile?.username || 'Not set'}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Username</span>
+                <span style={{ color: 'var(--text-primary)', fontSize: '14px' }}>@{profile?.username || 'Not set'}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(42, 90, 58, 0.1)' }}>
-                <span style={{ color: '#b0aca6', fontSize: '14px' }}>Email</span>
-                <span style={{ color: '#f0ece6', fontSize: '14px' }}>{user?.email}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Email</span>
+                <span style={{ color: 'var(--text-primary)', fontSize: '14px' }}>{user?.email}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(42, 90, 58, 0.1)' }}>
-                <span style={{ color: '#b0aca6', fontSize: '14px' }}>Bio</span>
-                <span style={{ color: '#f0ece6', fontSize: '14px', textAlign: 'right', maxWidth: '60%', wordBreak: 'break-word' }}>{profile?.bio || 'No bio yet'}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Bio</span>
+                <span style={{ color: 'var(--text-primary)', fontSize: '14px', textAlign: 'right', maxWidth: '60%', wordBreak: 'break-word' }}>{profile?.bio || 'No bio yet'}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
-                <span style={{ color: '#b0aca6', fontSize: '14px' }}>Birthday</span>
-                <span style={{ color: '#f0ece6', fontSize: '14px' }}>{profile?.birthday ? formatDate(profile.birthday) : 'Not set'}</span>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Birthday</span>
+                <span style={{ color: 'var(--text-primary)', fontSize: '14px' }}>{profile?.birthday ? formatDate(profile.birthday) : 'Not set'}</span>
               </div>
             </div>
           </div>
 
           {recentActivity.length > 0 && (
-            <div style={{ background: '#1e1e1e', padding: '24px', borderRadius: '16px', border: '1px solid rgba(42, 90, 58, 0.2)' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: '500', color: '#f0ece6', marginBottom: '16px' }}>Recent Activity</h2>
+            <div style={{ background: 'var(--bg-card)', padding: '24px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>Recent Activity</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {recentActivity.map((activity, index) => (
                   <div key={index} style={{ 
@@ -388,14 +407,14 @@ const Profile = () => {
                     alignItems: 'center', 
                     gap: '12px', 
                     padding: '10px 12px', 
-                    background: 'rgba(10, 10, 10, 0.4)', 
+                    background: 'var(--bg-secondary)', 
                     borderRadius: '8px' 
                   }}>
                     <span style={{ fontSize: '20px' }}>{activity.type === 'game' ? '🎮' : '🎁'}</span>
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <span style={{ color: '#f0ece6', fontSize: '14px' }}>{activity.title}</span>
-                      {activity.score && <span style={{ color: '#e8a0b4', fontSize: '13px' }}>{activity.score}</span>}
-                      <span style={{ color: '#b0aca6', fontSize: '12px', marginLeft: 'auto' }}>{formatDateAgo(activity.date)}</span>
+                      <span style={{ color: 'var(--text-primary)', fontSize: '14px' }}>{activity.title}</span>
+                      {activity.score && <span style={{ color: 'var(--pink)', fontSize: '13px' }}>{activity.score}</span>}
+                      <span style={{ color: 'var(--text-muted)', fontSize: '12px', marginLeft: 'auto' }}>{formatDateAgo(activity.date)}</span>
                     </div>
                   </div>
                 ))}
@@ -407,10 +426,10 @@ const Profile = () => {
             <button onClick={signOut} style={{ 
               flex: 1, 
               padding: '12px', 
-              background: 'none', 
-              border: '1px solid rgba(42, 90, 58, 0.3)', 
-              borderRadius: '8px', 
-              color: '#b0aca6', 
+              background: 'var(--bg-secondary)', 
+              border: '1px solid var(--border-color)', 
+              borderRadius: '10px', 
+              color: 'var(--text-secondary)', 
               fontSize: '16px', 
               cursor: 'pointer', 
               transition: 'all 0.3s ease' 
@@ -420,10 +439,10 @@ const Profile = () => {
             <button onClick={() => setShowDeleteConfirm(true)} style={{ 
               flex: 1, 
               padding: '12px', 
-              background: 'none', 
-              border: '1px solid rgba(255, 68, 68, 0.3)', 
-              borderRadius: '8px', 
-              color: '#ff4444', 
+              background: 'rgba(220, 53, 69, 0.1)', 
+              border: '1px solid rgba(220, 53, 69, 0.2)', 
+              borderRadius: '10px', 
+              color: '#dc3545', 
               fontSize: '16px', 
               cursor: 'pointer', 
               transition: 'all 0.3s ease' 
@@ -434,15 +453,15 @@ const Profile = () => {
         </div>
       ) : (
         <div style={{ display: 'grid', gap: '24px', maxWidth: '700px', margin: '0 auto' }}>
-          <div style={{ background: '#1e1e1e', padding: '24px', borderRadius: '16px', border: '1px solid rgba(42, 90, 58, 0.2)' }}>
+          <div style={{ background: 'var(--bg-card)', padding: '24px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: '500', color: '#f0ece6' }}>Edit Profile</h2>
+              <h2 style={{ fontSize: '20px', fontWeight: '600', color: 'var(--text-primary)' }}>Edit Profile</h2>
               <button onClick={() => setEditMode(false)} style={{ 
-                background: 'none', 
-                border: '1px solid rgba(42, 90, 58, 0.3)', 
-                color: '#b0aca6', 
+                background: 'var(--bg-secondary)', 
+                border: '1px solid var(--border-color)', 
+                color: 'var(--text-secondary)', 
                 padding: '6px 16px', 
-                borderRadius: '6px', 
+                borderRadius: '8px', 
                 cursor: 'pointer', 
                 transition: 'all 0.3s ease', 
                 fontSize: '13px' 
@@ -452,7 +471,7 @@ const Profile = () => {
             </div>
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ color: '#b0aca6', fontSize: '13px', fontWeight: '500' }}>Full Name</label>
+                <label style={{ color: 'var(--text-secondary)', fontSize: '13px', fontWeight: '500' }}>Full Name</label>
                 <input
                   name="full_name"
                   type="text"
@@ -460,11 +479,11 @@ const Profile = () => {
                   onChange={handleChange}
                   placeholder="Your full name"
                   style={{
-                    padding: '10px 14px',
-                    background: 'rgba(10, 10, 10, 0.6)',
-                    border: '1px solid rgba(42, 90, 58, 0.3)',
-                    borderRadius: '8px',
-                    color: '#f0ece6',
+                    padding: '12px 16px',
+                    background: 'var(--bg-input)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '10px',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     transition: 'all 0.3s ease'
                   }}
@@ -472,7 +491,7 @@ const Profile = () => {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ color: '#b0aca6', fontSize: '13px', fontWeight: '500' }}>Username</label>
+                <label style={{ color: 'var(--text-secondary)', fontSize: '13px', fontWeight: '500' }}>Username</label>
                 <input
                   name="username"
                   type="text"
@@ -480,11 +499,11 @@ const Profile = () => {
                   onChange={handleChange}
                   placeholder="Choose a username"
                   style={{
-                    padding: '10px 14px',
-                    background: 'rgba(10, 10, 10, 0.6)',
-                    border: '1px solid rgba(42, 90, 58, 0.3)',
-                    borderRadius: '8px',
-                    color: '#f0ece6',
+                    padding: '12px 16px',
+                    background: 'var(--bg-input)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '10px',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     transition: 'all 0.3s ease'
                   }}
@@ -492,7 +511,7 @@ const Profile = () => {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ color: '#b0aca6', fontSize: '13px', fontWeight: '500' }}>Bio</label>
+                <label style={{ color: 'var(--text-secondary)', fontSize: '13px', fontWeight: '500' }}>Bio</label>
                 <textarea
                   name="bio"
                   value={formData.bio}
@@ -500,11 +519,11 @@ const Profile = () => {
                   placeholder="Tell us about yourself..."
                   rows="3"
                   style={{
-                    padding: '10px 14px',
-                    background: 'rgba(10, 10, 10, 0.6)',
-                    border: '1px solid rgba(42, 90, 58, 0.3)',
-                    borderRadius: '8px',
-                    color: '#f0ece6',
+                    padding: '12px 16px',
+                    background: 'var(--bg-input)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '10px',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     transition: 'all 0.3s ease',
                     resize: 'vertical'
@@ -513,18 +532,18 @@ const Profile = () => {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ color: '#b0aca6', fontSize: '13px', fontWeight: '500' }}>Birthday</label>
+                <label style={{ color: 'var(--text-secondary)', fontSize: '13px', fontWeight: '500' }}>Birthday</label>
                 <input
                   name="birthday"
                   type="date"
                   value={formData.birthday}
                   onChange={handleChange}
                   style={{
-                    padding: '10px 14px',
-                    background: 'rgba(10, 10, 10, 0.6)',
-                    border: '1px solid rgba(42, 90, 58, 0.3)',
-                    borderRadius: '8px',
-                    color: '#f0ece6',
+                    padding: '12px 16px',
+                    background: 'var(--bg-input)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '10px',
+                    color: 'var(--text-primary)',
                     fontSize: '14px',
                     transition: 'all 0.3s ease'
                   }}
@@ -532,13 +551,13 @@ const Profile = () => {
               </div>
 
               <button type="submit" disabled={loading} style={{ 
-                padding: '12px', 
-                background: loading ? '#2a5a3a' : 'linear-gradient(135deg, #1a3a2a, #2a5a3a)', 
+                padding: '14px', 
+                background: loading ? 'var(--text-muted)' : 'linear-gradient(135deg, #e8a0b4, #c0788a)', 
                 border: 'none', 
-                borderRadius: '8px', 
-                color: '#f0ece6', 
+                borderRadius: '10px', 
+                color: '#fff', 
                 fontSize: '16px', 
-                fontWeight: '500', 
+                fontWeight: '600', 
                 cursor: loading ? 'not-allowed' : 'pointer', 
                 transition: 'all 0.3s ease', 
                 opacity: loading ? 0.6 : 1 
@@ -557,31 +576,33 @@ const Profile = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(0, 0, 0, 0.8)',
+          background: 'rgba(0, 0, 0, 0.6)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          zIndex: 1000
+          zIndex: 1000,
+          backdropFilter: 'blur(4px)'
         }}>
           <div style={{
-            background: '#1e1e1e',
+            background: 'var(--bg-card)',
             padding: '32px',
             borderRadius: '16px',
             maxWidth: '400px',
             width: '90%',
             textAlign: 'center',
-            border: '1px solid rgba(42, 90, 58, 0.3)'
+            border: '1px solid var(--border-color)',
+            boxShadow: 'var(--shadow)'
           }}>
-            <h3 style={{ color: '#f0ece6', marginBottom: '12px' }}>⚠️ Delete Account</h3>
-            <p style={{ color: '#b0aca6', marginBottom: '4px' }}>Are you sure you want to delete your account?</p>
-            <p style={{ color: '#ff4444', fontWeight: '500', marginTop: '8px' }}>This action cannot be undone.</p>
+            <h3 style={{ color: 'var(--text-primary)', marginBottom: '12px' }}>⚠️ Delete Account</h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '4px' }}>Are you sure you want to delete your account?</p>
+            <p style={{ color: '#dc3545', fontWeight: '500', marginTop: '8px' }}>This action cannot be undone.</p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '16px' }}>
               <button onClick={() => setShowDeleteConfirm(false)} style={{
                 padding: '10px 24px',
-                background: 'none',
-                border: '1px solid rgba(42, 90, 58, 0.3)',
-                borderRadius: '8px',
-                color: '#b0aca6',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '10px',
+                color: 'var(--text-secondary)',
                 cursor: 'pointer',
                 transition: 'all 0.3s ease'
               }}>
@@ -589,10 +610,10 @@ const Profile = () => {
               </button>
               <button onClick={handleDeleteAccount} style={{
                 padding: '10px 24px',
-                background: '#ff4444',
+                background: '#dc3545',
                 border: 'none',
-                borderRadius: '8px',
-                color: 'white',
+                borderRadius: '10px',
+                color: '#fff',
                 fontWeight: '600',
                 cursor: 'pointer',
                 transition: 'all 0.3s ease'

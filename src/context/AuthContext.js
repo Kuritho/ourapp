@@ -83,18 +83,22 @@ export const AuthProvider = ({ children }) => {
         password,
         options: {
           data: {
-            username,
-            full_name: fullName
+            username: username || email.split('@')[0],
+            full_name: fullName || email.split('@')[0]
           }
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Signup error:', error);
+        throw error;
+      }
 
       toast.success('Registration successful! Please verify your email.');
       return data;
     } catch (error) {
-      toast.error(error.message);
+      console.error('Signup error:', error);
+      toast.error(error.message || 'Registration failed. Please try again.');
       throw error;
     }
   };
@@ -106,12 +110,16 @@ export const AuthProvider = ({ children }) => {
         password
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Signin error:', error);
+        throw error;
+      }
 
       toast.success('Welcome back! ❤️');
       return data;
     } catch (error) {
-      toast.error(error.message);
+      console.error('Signin error:', error);
+      toast.error(error.message || 'Invalid login credentials');
       throw error;
     }
   };
@@ -126,6 +134,7 @@ export const AuthProvider = ({ children }) => {
       setIsAdmin(false);
       toast.success('Goodbye! See you soon ❤️');
     } catch (error) {
+      console.error('Signout error:', error);
       toast.error(error.message);
       throw error;
     }
@@ -161,8 +170,10 @@ export const AuthProvider = ({ children }) => {
 
   const updateProfile = async (updates) => {
     try {
-      // Remove any fields that shouldn't be updated directly
+      // Remove any fields that shouldn't be updated
       const { id, user_id, created_at, updated_at, ...safeUpdates } = updates;
+      
+      console.log('Updating profile with:', safeUpdates);
       
       const { error } = await supabase
         .from('profiles')
