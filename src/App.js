@@ -21,6 +21,8 @@ import Videos from './pages/Videos/Videos';
 import Games from './pages/Games/Games';
 import Rewards from './pages/Rewards/Rewards';
 import Admin from './pages/Admin/Admin';
+import CalendarPage from './pages/Calendar/CalendarPage';
+import Gcash from './pages/Gcash/Gcash';  // Add Gcash import
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -35,13 +37,13 @@ function App() {
         <AuthProvider>
           <div className="app">
             <Routes>
-              {/* Auth Routes */}
+              {/* Auth Routes - No Navbar */}
               <Route element={<AuthLayout />}>
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
               </Route>
 
-              {/* Protected Routes */}
+              {/* Protected Routes - With Navbar */}
               <Route element={<MainLayout />}>
                 <Route path="/" element={
                   <ProtectedRoute>
@@ -63,6 +65,11 @@ function App() {
                     <MonthsaryDetail />
                   </ProtectedRoute>
                 } />
+                <Route path="/calendar" element={
+                  <ProtectedRoute>
+                    <CalendarPage />
+                  </ProtectedRoute>
+                } />
                 <Route path="/gallery" element={
                   <ProtectedRoute>
                     <Gallery />
@@ -78,6 +85,11 @@ function App() {
                     <Games />
                   </ProtectedRoute>
                 } />
+                <Route path="/gcash" element={
+                  <ProtectedRoute>
+                    <Gcash />
+                  </ProtectedRoute>
+                } />
                 <Route path="/rewards" element={
                   <ProtectedRoute>
                     <Rewards />
@@ -90,10 +102,11 @@ function App() {
                 } />
               </Route>
 
-              {/* 404 */}
+              {/* 404 - Redirect to Home */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
 
+            {/* Toast Notifications */}
             <ToastContainer
               position="bottom-right"
               autoClose={3000}

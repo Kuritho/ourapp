@@ -1,7 +1,6 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import MobileNav from '../components/MobileNav';
 import Messenger from '../components/Messenger';
 
 const MainLayout = () => {
@@ -24,8 +23,6 @@ const MainLayout = () => {
       }}>
         <Outlet />
       </main>
-      <MobileNav />
-      {/* Messenger is now rendered here */}
       <Messenger />
     </div>
   );
