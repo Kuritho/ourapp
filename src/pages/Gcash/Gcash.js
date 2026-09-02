@@ -8,7 +8,10 @@ const Gcash = () => {
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState([]);
   const [totalBalance, setTotalBalance] = useState(0);
+  const [totalDeposits, setTotalDeposits] = useState(0);
+  const [totalSpent, setTotalSpent] = useState(0);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showSpendModal, setShowSpendModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [profileId, setProfileId] = useState(null);
@@ -16,6 +19,11 @@ const Gcash = () => {
   const [formData, setFormData] = useState({
     amount: '',
     transaction_type: 'deposit',
+    description: '',
+    transaction_date: new Date().toISOString().split('T')[0]
+  });
+  const [spendData, setSpendData] = useState({
+    amount: '',
     description: '',
     transaction_date: new Date().toISOString().split('T')[0]
   });
@@ -65,7 +73,7 @@ const Gcash = () => {
 
       if (error) throw error;
       setTransactions(data || []);
-      calculateBalance(data || []);
+      calculateTotals(data || []);
     } catch (error) {
       console.error('Error fetching transactions:', error);
     } finally {
@@ -73,28 +81,34 @@ const Gcash = () => {
     }
   };
 
-  const calculateBalance = (transactions) => {
+  const calculateTotals = (transactions) => {
     let balance = 0;
+    let deposits = 0;
+    let spent = 0;
+    
     transactions.forEach(t => {
       if (t.transaction_type === 'deposit') {
+        deposits += t.amount;
         balance += t.amount;
-      } else {
+      } else if (t.transaction_type === 'spent') {
+        spent += t.amount;
         balance -= t.amount;
       }
     });
+    
     setTotalBalance(balance);
+    setTotalDeposits(deposits);
+    setTotalSpent(spent);
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         alert('File is too large. Maximum size is 5MB.');
         return;
       }
       
-      // Validate file type
       if (!file.type.startsWith('image/')) {
         alert('Please upload an image file.');
         return;
@@ -109,7 +123,7 @@ const Gcash = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
     if (!profileId) return;
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
@@ -121,7 +135,6 @@ const Gcash = () => {
     try {
       let receiptUrl = null;
 
-      // Upload receipt if exists
       if (receiptFile) {
         const fileExt = receiptFile.name.split('.').pop();
         const fileName = `gcash/${profileId}/${Date.now()}.${fileExt}`;
@@ -134,7 +147,7 @@ const Gcash = () => {
         .insert({
           user_id: profileId,
           amount: parseFloat(formData.amount),
-          transaction_type: formData.transaction_type,
+          transaction_type: 'deposit',
           description: formData.description || null,
           receipt_url: receiptUrl,
           transaction_date: formData.transaction_date,
@@ -155,10 +168,74 @@ const Gcash = () => {
       });
       setReceiptFile(null);
       setReceiptPreview(null);
-      alert('Transaction added successfully! 💰');
+      alert('💰 Deposit added successfully!');
     } catch (error) {
-      console.error('Error adding transaction:', error);
-      alert('Error adding transaction: ' + error.message);
+      console.error('Error adding deposit:', error);
+      alert('Error adding deposit: ' + error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSpendSubmit = async (e) => {
+    e.preventDefault();
+    if (!profileId) return;
+    if (!spendData.amount || parseFloat(spendData.amount) <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+
+    // Check if there's enough balance
+    if (parseFloat(spendData.amount) > totalBalance) {
+      alert(`Insufficient balance! You only have ₱${totalBalance.toFixed(2)} available.`);
+      return;
+    }
+
+    if (!spendData.description.trim()) {
+      alert('Please provide a reason for spending.');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      let receiptUrl = null;
+
+      if (receiptFile) {
+        const fileExt = receiptFile.name.split('.').pop();
+        const fileName = `gcash/${profileId}/${Date.now()}.${fileExt}`;
+        const { path } = await uploadFile('receipts', receiptFile, fileName);
+        receiptUrl = getPublicUrl('receipts', path);
+      }
+
+      const { data, error } = await supabase
+        .from('gcash_savings')
+        .insert({
+          user_id: profileId,
+          amount: parseFloat(spendData.amount),
+          transaction_type: 'spent',
+          description: spendData.description.trim(),
+          receipt_url: receiptUrl,
+          transaction_date: spendData.transaction_date,
+          created_by: profileId
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await fetchTransactions();
+      setShowSpendModal(false);
+      setSpendData({
+        amount: '',
+        description: '',
+        transaction_date: new Date().toISOString().split('T')[0]
+      });
+      setReceiptFile(null);
+      setReceiptPreview(null);
+      alert(`💸 ₱${parseFloat(spendData.amount).toFixed(2)} spent successfully!`);
+    } catch (error) {
+      console.error('Error recording spending:', error);
+      alert('Error recording spending: ' + error.message);
     } finally {
       setUploading(false);
     }
@@ -168,7 +245,6 @@ const Gcash = () => {
     if (!window.confirm('Are you sure you want to delete this transaction?')) return;
 
     try {
-      // Delete receipt from storage if exists
       if (transaction.receipt_url) {
         const path = transaction.receipt_url.split('/').pop();
         await deleteFile('receipts', `gcash/${profileId}/${path}`);
@@ -207,14 +283,20 @@ const Gcash = () => {
 
   const getTransactionIcon = (type) => {
     if (type === 'deposit') return '📥';
-    if (type === 'withdrawal') return '📤';
+    if (type === 'spent') return '💸';
     return '🔄';
   };
 
   const getTransactionColor = (type) => {
     if (type === 'deposit') return '#4ade80';
-    if (type === 'withdrawal') return '#f87171';
+    if (type === 'spent') return '#f87171';
     return '#fbbf24';
+  };
+
+  const getTransactionLabel = (type) => {
+    if (type === 'deposit') return 'Deposit';
+    if (type === 'spent') return 'Spent';
+    return 'Transfer';
   };
 
   if (loading) {
@@ -318,72 +400,96 @@ const Gcash = () => {
         </div>
       </div>
 
-      {/* Balance Card */}
+      {/* Balance Summary Cards */}
       <div style={{
-        background: 'var(--gradient-1)',
-        borderRadius: 'var(--border-radius)',
-        padding: '24px',
-        marginBottom: '24px',
-        boxShadow: '0 8px 32px rgba(56, 189, 248, 0.25)',
-        position: 'relative',
-        overflow: 'hidden'
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+        gap: '12px',
+        marginBottom: '24px'
       }}>
         <div style={{
-          position: 'absolute',
-          top: '-50%',
-          right: '-20%',
-          fontSize: '120px',
-          opacity: 0.06,
-          pointerEvents: 'none'
-        }}>💰</div>
-        <div style={{ position: 'relative', zIndex: 1 }}>
+          background: 'var(--gradient-1)',
+          borderRadius: 'var(--border-radius)',
+          padding: '16px',
+          boxShadow: '0 8px 32px rgba(56, 189, 248, 0.25)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            position: 'absolute',
+            top: '-30%',
+            right: '-20%',
+            fontSize: '80px',
+            opacity: 0.06,
+            pointerEvents: 'none'
+          }}>💰</div>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <p style={{
+              fontSize: '11px',
+              color: 'rgba(255,255,255,0.8)',
+              letterSpacing: '0.5px',
+              marginBottom: '2px'
+            }}>Total Savings</p>
+            <p style={{
+              fontSize: '24px',
+              fontWeight: '700',
+              color: '#fff',
+              fontFamily: 'Georgia, serif'
+            }}>
+              {formatCurrency(totalBalance)}
+            </p>
+          </div>
+        </div>
+
+        <div style={{
+          background: 'var(--bg-card)',
+          borderRadius: 'var(--border-radius)',
+          padding: '16px',
+          border: '1px solid var(--border-color)'
+        }}>
           <p style={{
-            fontSize: '14px',
-            color: 'rgba(255,255,255,0.8)',
-            letterSpacing: '1px',
-            marginBottom: '4px'
-          }}>
-            Total Savings
-          </p>
+            fontSize: '11px',
+            color: 'var(--text-muted)',
+            letterSpacing: '0.5px',
+            marginBottom: '2px'
+          }}>📥 Total Deposits</p>
           <p style={{
-            fontSize: 'clamp(36px, 5vw, 48px)',
+            fontSize: '20px',
             fontWeight: '700',
-            color: '#fff',
+            color: '#4ade80',
             fontFamily: 'Georgia, serif'
           }}>
-            {formatCurrency(totalBalance)}
+            {formatCurrency(totalDeposits)}
           </p>
-          <div style={{
-            display: 'flex',
-            gap: '16px',
-            marginTop: '12px'
+        </div>
+
+        <div style={{
+          background: 'var(--bg-card)',
+          borderRadius: 'var(--border-radius)',
+          padding: '16px',
+          border: '1px solid var(--border-color)'
+        }}>
+          <p style={{
+            fontSize: '11px',
+            color: 'var(--text-muted)',
+            letterSpacing: '0.5px',
+            marginBottom: '2px'
+          }}>💸 Total Spent</p>
+          <p style={{
+            fontSize: '20px',
+            fontWeight: '700',
+            color: '#f87171',
+            fontFamily: 'Georgia, serif'
           }}>
-            <span style={{
-              fontSize: '12px',
-              color: 'rgba(255,255,255,0.7)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}>
-              📥 Deposits: {transactions.filter(t => t.transaction_type === 'deposit').length}
-            </span>
-            <span style={{
-              fontSize: '12px',
-              color: 'rgba(255,255,255,0.7)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}>
-              📤 Withdrawals: {transactions.filter(t => t.transaction_type === 'withdrawal').length}
-            </span>
-          </div>
+            {formatCurrency(totalSpent)}
+          </p>
         </div>
       </div>
 
       {/* Action Buttons */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
+        gridTemplateColumns: '1fr 1fr 1fr',
         gap: '12px',
         marginBottom: '24px'
       }}>
@@ -395,17 +501,37 @@ const Gcash = () => {
             border: 'none',
             borderRadius: 'var(--border-radius-sm)',
             color: '#fff',
-            fontSize: '15px',
+            fontSize: '14px',
             fontWeight: '600',
             cursor: 'pointer',
             transition: 'var(--transition)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '8px'
+            gap: '6px'
           }}
         >
-          <span>+</span> Add Transaction
+          <span>+</span> Add Money
+        </button>
+        <button
+          onClick={() => setShowSpendModal(true)}
+          style={{
+            padding: '14px',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 'var(--border-radius-sm)',
+            color: 'var(--text-primary)',
+            fontSize: '14px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'var(--transition)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px'
+          }}
+        >
+          💸 Spend Money
         </button>
         <button
           onClick={() => setShowReceiptModal(true)}
@@ -415,17 +541,17 @@ const Gcash = () => {
             border: '1px solid var(--border-color)',
             borderRadius: 'var(--border-radius-sm)',
             color: 'var(--text-primary)',
-            fontSize: '15px',
+            fontSize: '14px',
             fontWeight: '500',
             cursor: 'pointer',
             transition: 'var(--transition)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '8px'
+            gap: '6px'
           }}
         >
-          📸 View Receipts
+          📸 Receipts
         </button>
       </div>
 
@@ -447,6 +573,14 @@ const Gcash = () => {
           gap: '8px'
         }}>
           📋 Transaction History
+          <span style={{
+            fontSize: '12px',
+            fontWeight: '400',
+            color: 'var(--text-muted)',
+            marginLeft: 'auto'
+          }}>
+            {transactions.length} transactions
+          </span>
         </h3>
 
         {transactions.length === 0 ? (
@@ -473,9 +607,13 @@ const Gcash = () => {
                 alignItems: 'center',
                 gap: '14px',
                 padding: '12px 16px',
-                background: 'rgba(10, 14, 26, 0.4)',
+                background: transaction.transaction_type === 'spent' 
+                  ? 'rgba(248, 113, 113, 0.05)' 
+                  : 'rgba(10, 14, 26, 0.4)',
                 borderRadius: 'var(--border-radius-sm)',
-                border: '1px solid var(--border-color)',
+                border: transaction.transaction_type === 'spent' 
+                  ? '1px solid rgba(248, 113, 113, 0.15)' 
+                  : '1px solid var(--border-color)',
                 transition: 'var(--transition)'
               }}>
                 <div style={{
@@ -502,13 +640,15 @@ const Gcash = () => {
                       color: 'var(--text-primary)',
                       fontSize: '14px'
                     }}>
-                      {transaction.transaction_type.charAt(0).toUpperCase() + transaction.transaction_type.slice(1)}
+                      {getTransactionLabel(transaction.transaction_type)}
                     </span>
                     <span style={{
                       fontSize: '11px',
                       padding: '2px 10px',
                       borderRadius: '10px',
-                      background: transaction.transaction_type === 'deposit' ? 'rgba(74, 222, 128, 0.15)' : 'rgba(248, 113, 113, 0.15)',
+                      background: transaction.transaction_type === 'deposit' 
+                        ? 'rgba(74, 222, 128, 0.15)' 
+                        : 'rgba(248, 113, 113, 0.15)',
                       color: transaction.transaction_type === 'deposit' ? '#4ade80' : '#f87171'
                     }}>
                       {transaction.transaction_type === 'deposit' ? '+' : '-'}{formatCurrency(transaction.amount)}
@@ -517,10 +657,11 @@ const Gcash = () => {
                   {transaction.description && (
                     <div style={{
                       fontSize: '13px',
-                      color: 'var(--text-muted)',
-                      marginTop: '2px'
+                      color: transaction.transaction_type === 'spent' ? '#f87171' : 'var(--text-muted)',
+                      marginTop: '2px',
+                      fontStyle: transaction.transaction_type === 'spent' ? 'italic' : 'normal'
                     }}>
-                      {transaction.description}
+                      {transaction.transaction_type === 'spent' ? '💬 ' : ''}{transaction.description}
                     </div>
                   )}
                   <div style={{
@@ -529,7 +670,8 @@ const Gcash = () => {
                     marginTop: '2px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px'
+                    gap: '8px',
+                    flexWrap: 'wrap'
                   }}>
                     <span>{formatDate(transaction.transaction_date)}</span>
                     {transaction.receipt_url && (
@@ -541,6 +683,17 @@ const Gcash = () => {
                         fontSize: '11px'
                       }}>
                         📎 Receipt
+                      </span>
+                    )}
+                    {transaction.transaction_type === 'spent' && (
+                      <span style={{
+                        fontSize: '10px',
+                        color: 'rgba(248, 113, 113, 0.6)',
+                        padding: '2px 8px',
+                        background: 'rgba(248, 113, 113, 0.08)',
+                        borderRadius: '10px'
+                      }}>
+                        💸 Expense
                       </span>
                     )}
                   </div>
@@ -565,7 +718,7 @@ const Gcash = () => {
         )}
       </div>
 
-      {/* Add Transaction Modal */}
+      {/* Add Money Modal */}
       {showAddModal && (
         <div style={{
           position: 'fixed',
@@ -604,7 +757,7 @@ const Gcash = () => {
                 fontWeight: '700',
                 color: 'var(--text-primary)'
               }}>
-                💰 Add Transaction
+                📥 Add Money
               </h3>
               <button
                 onClick={() => {
@@ -625,38 +778,8 @@ const Gcash = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleAddSubmit}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '13px',
-                    fontWeight: '500',
-                    color: 'var(--text-secondary)',
-                    marginBottom: '4px'
-                  }}>
-                    Transaction Type *
-                  </label>
-                  <select
-                    value={formData.transaction_type}
-                    onChange={(e) => setFormData({ ...formData, transaction_type: e.target.value })}
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      background: 'var(--bg-input)',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '8px',
-                      color: 'var(--text-primary)',
-                      fontSize: '14px'
-                    }}
-                  >
-                    <option value="deposit">📥 Deposit</option>
-                    <option value="withdrawal">📤 Withdrawal</option>
-                    <option value="transfer">🔄 Transfer</option>
-                  </select>
-                </div>
-
                 <div>
                   <label style={{
                     display: 'block',
@@ -695,7 +818,7 @@ const Gcash = () => {
                     color: 'var(--text-secondary)',
                     marginBottom: '4px'
                   }}>
-                    Description
+                    Description (Optional)
                   </label>
                   <input
                     type="text"
@@ -821,7 +944,277 @@ const Gcash = () => {
                       opacity: uploading ? 0.6 : 1
                     }}
                   >
-                    {uploading ? 'Saving...' : '💾 Save'}
+                    {uploading ? 'Saving...' : '💾 Add Money'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Spend Money Modal */}
+      {showSpendModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          padding: '16px',
+          backdropFilter: 'blur(4px)'
+        }}>
+          <div style={{
+            background: 'var(--bg-card)',
+            borderRadius: 'var(--border-radius)',
+            padding: '28px',
+            maxWidth: '500px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            border: '1px solid var(--border-color)',
+            boxShadow: 'var(--shadow)',
+            animation: 'slideUp 0.3s ease'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px'
+            }}>
+              <h3 style={{
+                fontSize: '20px',
+                fontWeight: '700',
+                color: 'var(--text-primary)'
+              }}>
+                💸 Spend Money
+              </h3>
+              <button
+                onClick={() => {
+                  setShowSpendModal(false);
+                  setReceiptFile(null);
+                  setReceiptPreview(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  padding: '4px 8px'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{
+              background: 'rgba(56, 189, 248, 0.05)',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              marginBottom: '16px',
+              border: '1px solid var(--border-color)'
+            }}>
+              <p style={{
+                fontSize: '13px',
+                color: 'var(--text-secondary)'
+              }}>
+                Available Balance: <span style={{
+                  fontWeight: '700',
+                  color: 'var(--primary)',
+                  fontSize: '18px'
+                }}>{formatCurrency(totalBalance)}</span>
+              </p>
+            </div>
+
+            <form onSubmit={handleSpendSubmit}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '4px'
+                  }}>
+                    Amount to Spend (PHP) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={totalBalance}
+                    value={spendData.amount}
+                    onChange={(e) => setSpendData({ ...spendData, amount: e.target.value })}
+                    placeholder="0.00"
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      background: 'var(--bg-input)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                      fontSize: '14px'
+                    }}
+                  />
+                  {spendData.amount && parseFloat(spendData.amount) > totalBalance && (
+                    <div style={{
+                      color: '#f87171',
+                      fontSize: '12px',
+                      marginTop: '4px'
+                    }}>
+                      ⚠️ Insufficient balance! You only have {formatCurrency(totalBalance)}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '4px'
+                  }}>
+                    Reason for Spending *
+                  </label>
+                  <textarea
+                    value={spendData.description}
+                    onChange={(e) => setSpendData({ ...spendData, description: e.target.value })}
+                    placeholder="Why are you spending this money? (e.g., Groceries, Bills, Date Night, etc.)"
+                    required
+                    rows="3"
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      background: 'var(--bg-input)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                      fontSize: '14px',
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '4px'
+                  }}>
+                    Transaction Date
+                  </label>
+                  <input
+                    type="date"
+                    value={spendData.transaction_date}
+                    onChange={(e) => setSpendData({ ...spendData, transaction_date: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      background: 'var(--bg-input)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                      fontSize: '14px'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '4px'
+                  }}>
+                    Upload Receipt (Optional)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      background: 'var(--bg-input)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                      fontSize: '14px'
+                    }}
+                  />
+                  {receiptPreview && (
+                    <div style={{
+                      marginTop: '8px',
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      maxWidth: '150px',
+                      border: '1px solid var(--border-color)'
+                    }}>
+                      <img src={receiptPreview} alt="Receipt preview" style={{ width: '100%', height: 'auto' }} />
+                    </div>
+                  )}
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  gap: '12px',
+                  marginTop: '8px'
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSpendModal(false);
+                      setReceiptFile(null);
+                      setReceiptPreview(null);
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '12px',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      color: 'var(--text-secondary)',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'var(--transition)'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={uploading || !spendData.amount || parseFloat(spendData.amount) > totalBalance}
+                    style={{
+                      flex: 1,
+                      padding: '12px',
+                      background: (uploading || !spendData.amount || parseFloat(spendData.amount) > totalBalance) 
+                        ? 'var(--text-muted)' 
+                        : 'linear-gradient(135deg, #f87171, #ef4444)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: '#fff',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: (uploading || !spendData.amount || parseFloat(spendData.amount) > totalBalance) 
+                        ? 'not-allowed' 
+                        : 'pointer',
+                      transition: 'var(--transition)',
+                      opacity: (uploading || !spendData.amount || parseFloat(spendData.amount) > totalBalance) ? 0.6 : 1
+                    }}
+                  >
+                    {uploading ? 'Processing...' : '💸 Confirm Spending'}
                   </button>
                 </div>
               </div>
@@ -869,7 +1262,7 @@ const Gcash = () => {
                 fontWeight: '700',
                 color: 'var(--text-primary)'
               }}>
-                📸 Receipts
+                📸 Receipts Gallery
               </h3>
               <button
                 onClick={() => setShowReceiptModal(false)}
@@ -894,7 +1287,7 @@ const Gcash = () => {
               }}>
                 <span style={{ fontSize: '48px', display: 'block', marginBottom: '12px' }}>🖼️</span>
                 <h4 style={{ color: 'var(--text-primary)', marginBottom: '4px' }}>No receipts uploaded</h4>
-                <p style={{ fontSize: '14px' }}>Upload receipts when adding transactions</p>
+                <p style={{ fontSize: '14px' }}>Upload receipts when adding or spending money</p>
               </div>
             ) : (
               <div style={{
@@ -906,7 +1299,9 @@ const Gcash = () => {
                   <div key={transaction.id} style={{
                     borderRadius: 'var(--border-radius-sm)',
                     overflow: 'hidden',
-                    border: '1px solid var(--border-color)',
+                    border: transaction.transaction_type === 'spent' 
+                      ? '2px solid rgba(248, 113, 113, 0.3)' 
+                      : '1px solid var(--border-color)',
                     background: 'var(--bg-secondary)',
                     cursor: 'pointer',
                     transition: 'var(--transition)'
@@ -929,11 +1324,40 @@ const Gcash = () => {
                       color: 'var(--text-secondary)',
                       textAlign: 'center'
                     }}>
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '1px 8px',
+                        borderRadius: '8px',
+                        fontSize: '9px',
+                        fontWeight: '600',
+                        background: transaction.transaction_type === 'spent' 
+                          ? 'rgba(248, 113, 113, 0.15)' 
+                          : 'rgba(74, 222, 128, 0.15)',
+                        color: transaction.transaction_type === 'spent' ? '#f87171' : '#4ade80'
+                      }}>
+                        {transaction.transaction_type === 'spent' ? '💸 Spent' : '📥 Deposit'}
+                      </span>
+                      <br />
                       {formatDate(transaction.transaction_date)}
                       <br />
                       <span style={{ fontWeight: '600', color: 'var(--primary)' }}>
                         {formatCurrency(transaction.amount)}
                       </span>
+                      {transaction.description && (
+                        <>
+                          <br />
+                          <span style={{ 
+                            fontSize: '10px', 
+                            color: 'var(--text-muted)',
+                            display: 'block',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {transaction.description}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
