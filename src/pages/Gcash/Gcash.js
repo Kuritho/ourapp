@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { uploadFile, getPublicUrl, deleteFile } from '../../lib/storage';
 
 const Gcash = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState([]);
   const [totalBalance, setTotalBalance] = useState(0);
@@ -16,6 +16,7 @@ const Gcash = () => {
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [profileId, setProfileId] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [otherUser, setOtherUser] = useState(null);
   const [formData, setFormData] = useState({
     amount: '',
     transaction_type: 'deposit',
@@ -36,22 +37,36 @@ const Gcash = () => {
     name: 'Kurt Brian Catulong'
   };
 
+  // Get profile ID and other user
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchUsers = async () => {
       if (!user) return;
       try {
-        const { data, error } = await supabase
+        // Get current user's profile
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, full_name, avatar_url')
           .eq('user_id', user.id)
           .single();
-        if (error) throw error;
-        setProfileId(data.id);
+        if (profileError) throw profileError;
+        setProfileId(profileData.id);
+
+        // Get the other user (for display purposes)
+        const { data: otherUserData, error: otherError } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .neq('user_id', user.id)
+          .limit(1);
+
+        if (otherError) throw otherError;
+        if (otherUserData && otherUserData.length > 0) {
+          setOtherUser(otherUserData[0]);
+        }
       } catch (error) {
-        console.error('Error fetching profile:', error);
+        console.error('Error fetching users:', error);
       }
     };
-    fetchProfile();
+    fetchUsers();
   }, [user]);
 
   useEffect(() => {
@@ -64,10 +79,10 @@ const Gcash = () => {
     if (!profileId) return;
     setLoading(true);
     try {
+      // Fetch ALL transactions (joint account)
       const { data, error } = await supabase
         .from('gcash_savings')
-        .select('*')
-        .eq('user_id', profileId)
+        .select('*, contributor:contributor_id (full_name, avatar_url)')
         .order('transaction_date', { ascending: false })
         .order('created_at', { ascending: false });
 
@@ -151,7 +166,7 @@ const Gcash = () => {
           description: formData.description || null,
           receipt_url: receiptUrl,
           transaction_date: formData.transaction_date,
-          created_by: profileId
+          contributor_id: profileId
         })
         .select()
         .single();
@@ -168,7 +183,7 @@ const Gcash = () => {
       });
       setReceiptFile(null);
       setReceiptPreview(null);
-      alert('💰 Deposit added successfully!');
+      alert(`💰 ${profile?.full_name || 'You'} added ${formatCurrency(parseFloat(formData.amount))} to the savings!`);
     } catch (error) {
       console.error('Error adding deposit:', error);
       alert('Error adding deposit: ' + error.message);
@@ -185,9 +200,8 @@ const Gcash = () => {
       return;
     }
 
-    // Check if there's enough balance
     if (parseFloat(spendData.amount) > totalBalance) {
-      alert(`Insufficient balance! You only have ₱${totalBalance.toFixed(2)} available.`);
+      alert(`Insufficient balance! You only have ${formatCurrency(totalBalance)} available.`);
       return;
     }
 
@@ -216,7 +230,7 @@ const Gcash = () => {
           description: spendData.description.trim(),
           receipt_url: receiptUrl,
           transaction_date: spendData.transaction_date,
-          created_by: profileId
+          contributor_id: profileId
         })
         .select()
         .single();
@@ -232,7 +246,7 @@ const Gcash = () => {
       });
       setReceiptFile(null);
       setReceiptPreview(null);
-      alert(`💸 ₱${parseFloat(spendData.amount).toFixed(2)} spent successfully!`);
+      alert(`💸 ${profile?.full_name || 'You'} spent ${formatCurrency(parseFloat(spendData.amount))}`);
     } catch (error) {
       console.error('Error recording spending:', error);
       alert('Error recording spending: ' + error.message);
@@ -242,6 +256,12 @@ const Gcash = () => {
   };
 
   const handleDeleteTransaction = async (transaction) => {
+    // Only allow deletion if user is the contributor
+    if (transaction.contributor_id !== profileId) {
+      alert('You can only delete your own transactions.');
+      return;
+    }
+
     if (!window.confirm('Are you sure you want to delete this transaction?')) return;
 
     try {
@@ -324,14 +344,74 @@ const Gcash = () => {
           color: 'var(--text-primary)',
           marginBottom: '4px'
         }}>
-          💰 Gcash Savings
+          💰 Our Savings
         </h1>
         <p style={{
           color: 'var(--text-secondary)',
           fontSize: '14px'
         }}>
-          Saving for our future together
+          Joint savings for Brian & Jasmine's future
         </p>
+      </div>
+
+      {/* Joint Account Info */}
+      <div style={{
+        background: 'var(--bg-card)',
+        borderRadius: 'var(--border-radius)',
+        padding: '16px 20px',
+        border: '1px solid var(--border-color)',
+        marginBottom: '24px',
+        boxShadow: 'var(--shadow-light)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <span style={{ fontSize: '24px' }}>👫</span>
+          <div>
+            <p style={{
+              fontSize: '12px',
+              color: 'var(--text-muted)',
+              letterSpacing: '0.5px'
+            }}>
+              Joint Account
+            </p>
+            <p style={{
+              fontSize: '14px',
+              fontWeight: '600',
+              color: 'var(--text-primary)'
+            }}>
+              Brian <span style={{ color: 'var(--primary)' }}>♥</span> Jasmine
+            </p>
+          </div>
+        </div>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '13px',
+            color: 'var(--text-secondary)'
+          }}>
+            <span>👤 {profile?.full_name || 'You'}</span>
+            {otherUser && (
+              <>
+                <span style={{ opacity: 0.3 }}>•</span>
+                <span>👤 {otherUser.full_name}</span>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* GCash Account Info */}
@@ -601,119 +681,133 @@ const Gcash = () => {
             maxHeight: '500px',
             overflowY: 'auto'
           }}>
-            {transactions.map((transaction) => (
-              <div key={transaction.id} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '14px',
-                padding: '12px 16px',
-                background: transaction.transaction_type === 'spent' 
-                  ? 'rgba(248, 113, 113, 0.05)' 
-                  : 'rgba(10, 14, 26, 0.4)',
-                borderRadius: 'var(--border-radius-sm)',
-                border: transaction.transaction_type === 'spent' 
-                  ? '1px solid rgba(248, 113, 113, 0.15)' 
-                  : '1px solid var(--border-color)',
-                transition: 'var(--transition)'
-              }}>
-                <div style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '50%',
-                  background: `rgba(${getTransactionColor(transaction.transaction_type)}, 0.15)`,
+            {transactions.map((transaction) => {
+              const isOwn = transaction.contributor_id === profileId;
+              return (
+                <div key={transaction.id} style={{
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '20px'
+                  gap: '14px',
+                  padding: '12px 16px',
+                  background: transaction.transaction_type === 'spent' 
+                    ? 'rgba(248, 113, 113, 0.05)' 
+                    : 'rgba(10, 14, 26, 0.4)',
+                  borderRadius: 'var(--border-radius-sm)',
+                  border: transaction.transaction_type === 'spent' 
+                    ? '1px solid rgba(248, 113, 113, 0.15)' 
+                    : '1px solid var(--border-color)',
+                  transition: 'var(--transition)'
                 }}>
-                  {getTransactionIcon(transaction.transaction_type)}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    background: `rgba(${getTransactionColor(transaction.transaction_type)}, 0.15)`,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    flexWrap: 'wrap'
+                    justifyContent: 'center',
+                    fontSize: '20px'
                   }}>
-                    <span style={{
-                      fontWeight: '600',
-                      color: 'var(--text-primary)',
-                      fontSize: '14px'
-                    }}>
-                      {getTransactionLabel(transaction.transaction_type)}
-                    </span>
-                    <span style={{
-                      fontSize: '11px',
-                      padding: '2px 10px',
-                      borderRadius: '10px',
-                      background: transaction.transaction_type === 'deposit' 
-                        ? 'rgba(74, 222, 128, 0.15)' 
-                        : 'rgba(248, 113, 113, 0.15)',
-                      color: transaction.transaction_type === 'deposit' ? '#4ade80' : '#f87171'
-                    }}>
-                      {transaction.transaction_type === 'deposit' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                    </span>
+                    {getTransactionIcon(transaction.transaction_type)}
                   </div>
-                  {transaction.description && (
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
-                      fontSize: '13px',
-                      color: transaction.transaction_type === 'spent' ? '#f87171' : 'var(--text-muted)',
-                      marginTop: '2px',
-                      fontStyle: transaction.transaction_type === 'spent' ? 'italic' : 'normal'
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      flexWrap: 'wrap'
                     }}>
-                      {transaction.transaction_type === 'spent' ? '💬 ' : ''}{transaction.description}
-                    </div>
-                  )}
-                  <div style={{
-                    fontSize: '11px',
-                    color: 'var(--text-muted)',
-                    marginTop: '2px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    flexWrap: 'wrap'
-                  }}>
-                    <span>{formatDate(transaction.transaction_date)}</span>
-                    {transaction.receipt_url && (
                       <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        color: 'var(--primary)',
-                        fontSize: '11px'
+                        fontWeight: '600',
+                        color: 'var(--text-primary)',
+                        fontSize: '14px'
                       }}>
-                        📎 Receipt
+                        {getTransactionLabel(transaction.transaction_type)}
                       </span>
-                    )}
-                    {transaction.transaction_type === 'spent' && (
+                      <span style={{
+                        fontSize: '11px',
+                        padding: '2px 10px',
+                        borderRadius: '10px',
+                        background: transaction.transaction_type === 'deposit' 
+                          ? 'rgba(74, 222, 128, 0.15)' 
+                          : 'rgba(248, 113, 113, 0.15)',
+                        color: transaction.transaction_type === 'deposit' ? '#4ade80' : '#f87171'
+                      }}>
+                        {transaction.transaction_type === 'deposit' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                      </span>
                       <span style={{
                         fontSize: '10px',
-                        color: 'rgba(248, 113, 113, 0.6)',
                         padding: '2px 8px',
-                        background: 'rgba(248, 113, 113, 0.08)',
-                        borderRadius: '10px'
+                        borderRadius: '10px',
+                        background: isOwn ? 'rgba(56, 189, 248, 0.1)' : 'rgba(251, 191, 36, 0.1)',
+                        color: isOwn ? 'var(--primary)' : '#fbbf24'
                       }}>
-                        💸 Expense
+                        {isOwn ? '👤 You' : `👤 ${transaction.contributor?.full_name || 'Partner'}`}
                       </span>
+                    </div>
+                    {transaction.description && (
+                      <div style={{
+                        fontSize: '13px',
+                        color: transaction.transaction_type === 'spent' ? '#f87171' : 'var(--text-muted)',
+                        marginTop: '2px',
+                        fontStyle: transaction.transaction_type === 'spent' ? 'italic' : 'normal'
+                      }}>
+                        {transaction.transaction_type === 'spent' ? '💬 ' : ''}{transaction.description}
+                      </div>
                     )}
+                    <div style={{
+                      fontSize: '11px',
+                      color: 'var(--text-muted)',
+                      marginTop: '2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <span>{formatDate(transaction.transaction_date)}</span>
+                      {transaction.receipt_url && (
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          color: 'var(--primary)',
+                          fontSize: '11px'
+                        }}>
+                          📎 Receipt
+                        </span>
+                      )}
+                      {transaction.transaction_type === 'spent' && (
+                        <span style={{
+                          fontSize: '10px',
+                          color: 'rgba(248, 113, 113, 0.6)',
+                          padding: '2px 8px',
+                          background: 'rgba(248, 113, 113, 0.08)',
+                          borderRadius: '10px'
+                        }}>
+                          💸 Expense
+                        </span>
+                      )}
+                    </div>
                   </div>
+                  {isOwn && (
+                    <button
+                      onClick={() => handleDeleteTransaction(transaction)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        fontSize: '18px',
+                        padding: '4px 8px',
+                        transition: 'var(--transition)'
+                      }}
+                    >
+                      🗑️
+                    </button>
+                  )}
                 </div>
-                <button
-                  onClick={() => handleDeleteTransaction(transaction)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer',
-                    fontSize: '18px',
-                    padding: '4px 8px',
-                    transition: 'var(--transition)'
-                  }}
-                >
-                  🗑️
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -752,13 +846,22 @@ const Gcash = () => {
               alignItems: 'center',
               marginBottom: '20px'
             }}>
-              <h3 style={{
-                fontSize: '20px',
-                fontWeight: '700',
-                color: 'var(--text-primary)'
-              }}>
-                📥 Add Money
-              </h3>
+              <div>
+                <h3 style={{
+                  fontSize: '20px',
+                  fontWeight: '700',
+                  color: 'var(--text-primary)'
+                }}>
+                  📥 Add Money
+                </h3>
+                <p style={{
+                  fontSize: '13px',
+                  color: 'var(--text-muted)',
+                  marginTop: '2px'
+                }}>
+                  Adding to joint savings
+                </p>
+              </div>
               <button
                 onClick={() => {
                   setShowAddModal(false);
@@ -941,10 +1044,14 @@ const Gcash = () => {
                       fontWeight: '600',
                       cursor: uploading ? 'not-allowed' : 'pointer',
                       transition: 'var(--transition)',
-                      opacity: uploading ? 0.6 : 1
+                      opacity: uploading ? 0.6 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
                     }}
                   >
-                    {uploading ? 'Saving...' : '💾 Add Money'}
+                    {uploading ? 'Saving...' : `💾 Add to Savings`}
                   </button>
                 </div>
               </div>
@@ -987,13 +1094,22 @@ const Gcash = () => {
               alignItems: 'center',
               marginBottom: '20px'
             }}>
-              <h3 style={{
-                fontSize: '20px',
-                fontWeight: '700',
-                color: 'var(--text-primary)'
-              }}>
-                💸 Spend Money
-              </h3>
+              <div>
+                <h3 style={{
+                  fontSize: '20px',
+                  fontWeight: '700',
+                  color: 'var(--text-primary)'
+                }}>
+                  💸 Spend Money
+                </h3>
+                <p style={{
+                  fontSize: '13px',
+                  color: 'var(--text-muted)',
+                  marginTop: '2px'
+                }}>
+                  Withdrawing from joint savings
+                </p>
+              </div>
               <button
                 onClick={() => {
                   setShowSpendModal(false);
@@ -1257,13 +1373,22 @@ const Gcash = () => {
               alignItems: 'center',
               marginBottom: '20px'
             }}>
-              <h3 style={{
-                fontSize: '20px',
-                fontWeight: '700',
-                color: 'var(--text-primary)'
-              }}>
-                📸 Receipts Gallery
-              </h3>
+              <div>
+                <h3 style={{
+                  fontSize: '20px',
+                  fontWeight: '700',
+                  color: 'var(--text-primary)'
+                }}>
+                  📸 Receipts Gallery
+                </h3>
+                <p style={{
+                  fontSize: '13px',
+                  color: 'var(--text-muted)',
+                  marginTop: '2px'
+                }}>
+                  All receipts from joint savings
+                </p>
+              </div>
               <button
                 onClick={() => setShowReceiptModal(false)}
                 style={{
@@ -1295,72 +1420,82 @@ const Gcash = () => {
                 gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
                 gap: '12px'
               }}>
-                {transactions.filter(t => t.receipt_url).map((transaction) => (
-                  <div key={transaction.id} style={{
-                    borderRadius: 'var(--border-radius-sm)',
-                    overflow: 'hidden',
-                    border: transaction.transaction_type === 'spent' 
-                      ? '2px solid rgba(248, 113, 113, 0.3)' 
-                      : '1px solid var(--border-color)',
-                    background: 'var(--bg-secondary)',
-                    cursor: 'pointer',
-                    transition: 'var(--transition)'
-                  }}
-                  onClick={() => window.open(transaction.receipt_url, '_blank')}
-                  >
-                    <img 
-                      src={transaction.receipt_url} 
-                      alt={`Receipt ${transaction.id}`} 
-                      style={{ 
-                        width: '100%', 
-                        height: '150px', 
-                        objectFit: 'cover',
-                        display: 'block'
-                      }} 
-                    />
-                    <div style={{
-                      padding: '8px 12px',
-                      fontSize: '12px',
-                      color: 'var(--text-secondary)',
-                      textAlign: 'center'
-                    }}>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '1px 8px',
-                        borderRadius: '8px',
-                        fontSize: '9px',
-                        fontWeight: '600',
-                        background: transaction.transaction_type === 'spent' 
-                          ? 'rgba(248, 113, 113, 0.15)' 
-                          : 'rgba(74, 222, 128, 0.15)',
-                        color: transaction.transaction_type === 'spent' ? '#f87171' : '#4ade80'
+                {transactions.filter(t => t.receipt_url).map((transaction) => {
+                  const isOwn = transaction.contributor_id === profileId;
+                  return (
+                    <div key={transaction.id} style={{
+                      borderRadius: 'var(--border-radius-sm)',
+                      overflow: 'hidden',
+                      border: transaction.transaction_type === 'spent' 
+                        ? '2px solid rgba(248, 113, 113, 0.3)' 
+                        : '1px solid var(--border-color)',
+                      background: 'var(--bg-secondary)',
+                      cursor: 'pointer',
+                      transition: 'var(--transition)'
+                    }}
+                    onClick={() => window.open(transaction.receipt_url, '_blank')}
+                    >
+                      <img 
+                        src={transaction.receipt_url} 
+                        alt={`Receipt ${transaction.id}`} 
+                        style={{ 
+                          width: '100%', 
+                          height: '150px', 
+                          objectFit: 'cover',
+                          display: 'block'
+                        }} 
+                      />
+                      <div style={{
+                        padding: '8px 12px',
+                        fontSize: '12px',
+                        color: 'var(--text-secondary)',
+                        textAlign: 'center'
                       }}>
-                        {transaction.transaction_type === 'spent' ? '💸 Spent' : '📥 Deposit'}
-                      </span>
-                      <br />
-                      {formatDate(transaction.transaction_date)}
-                      <br />
-                      <span style={{ fontWeight: '600', color: 'var(--primary)' }}>
-                        {formatCurrency(transaction.amount)}
-                      </span>
-                      {transaction.description && (
-                        <>
-                          <br />
-                          <span style={{ 
-                            fontSize: '10px', 
-                            color: 'var(--text-muted)',
-                            display: 'block',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            {transaction.description}
-                          </span>
-                        </>
-                      )}
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '1px 8px',
+                          borderRadius: '8px',
+                          fontSize: '9px',
+                          fontWeight: '600',
+                          background: transaction.transaction_type === 'spent' 
+                            ? 'rgba(248, 113, 113, 0.15)' 
+                            : 'rgba(74, 222, 128, 0.15)',
+                          color: transaction.transaction_type === 'spent' ? '#f87171' : '#4ade80'
+                        }}>
+                          {transaction.transaction_type === 'spent' ? '💸 Spent' : '📥 Deposit'}
+                        </span>
+                        <br />
+                        {formatDate(transaction.transaction_date)}
+                        <br />
+                        <span style={{ fontWeight: '600', color: 'var(--primary)' }}>
+                          {formatCurrency(transaction.amount)}
+                        </span>
+                        <br />
+                        <span style={{
+                          fontSize: '10px',
+                          color: isOwn ? 'var(--primary)' : '#fbbf24'
+                        }}>
+                          {isOwn ? '👤 You' : `👤 ${transaction.contributor?.full_name || 'Partner'}`}
+                        </span>
+                        {transaction.description && (
+                          <>
+                            <br />
+                            <span style={{ 
+                              fontSize: '10px', 
+                              color: 'var(--text-muted)',
+                              display: 'block',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {transaction.description}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

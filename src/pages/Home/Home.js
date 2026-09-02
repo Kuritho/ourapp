@@ -106,7 +106,7 @@ const Home = () => {
 
       if (eventsData) setUpcomingEvents(eventsData);
 
-      // Fetch Gcash balance
+      // Fetch Gcash balance (joint account)
       await fetchGcashBalance();
 
       // Fetch top scores
@@ -119,12 +119,11 @@ const Home = () => {
   };
 
   const fetchGcashBalance = async () => {
-    if (!profileId) return;
     try {
+      // Fetch ALL transactions (joint account - no user_id filter)
       const { data, error } = await supabase
         .from('gcash_savings')
-        .select('amount, transaction_type')
-        .eq('user_id', profileId);
+        .select('amount, transaction_type');
 
       if (error) throw error;
       
@@ -133,7 +132,7 @@ const Home = () => {
         data.forEach(t => {
           if (t.transaction_type === 'deposit') {
             balance += t.amount;
-          } else {
+          } else if (t.transaction_type === 'spent') {
             balance -= t.amount;
           }
         });
@@ -425,7 +424,7 @@ const Home = () => {
         </div>
       </div>
 
-      {/* Gcash Savings Card - Added to Home */}
+      {/* Gcash Joint Savings Card */}
       <div style={{
         background: 'var(--bg-card)',
         borderRadius: 'var(--border-radius)',
@@ -454,7 +453,7 @@ const Home = () => {
                 color: 'var(--text-secondary)',
                 letterSpacing: '0.5px'
               }}>
-                Total Savings
+                👫 Our Joint Savings
               </p>
               <p style={{
                 fontSize: '28px',
@@ -463,6 +462,13 @@ const Home = () => {
                 fontFamily: 'Georgia, serif'
               }}>
                 ₱{gcashBalance.toFixed(2)}
+              </p>
+              <p style={{
+                fontSize: '11px',
+                color: 'var(--text-muted)',
+                marginTop: '2px'
+              }}>
+                Brian ♥ Jasmine • Both can contribute
               </p>
             </div>
           </div>
